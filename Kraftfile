@@ -6,4 +6,4 @@ rootfs:
   source: ./Dockerfile
   format: erofs
 
-cmd: ["/usr/local/bin/node", "/app/index.js"]
+cmd: ["/usr/local/bin/python", "/app/app.py"]
