@@ -100,11 +100,6 @@ jobs:
     name: Build and Deploy
     runs-on: ubuntu-latest
     
-    # 🌟 核心修复：在这里统一注入 Unikraft 官方底层识别的 KRAFTKIT_TOKEN 全局环境变量
-    # 这样后续所有的 Steps（包括 build, push, deploy）都能源源不断地获得认证信息
-    env:
-      KRAFTKIT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
-
     steps:
       # ========================================
       # 步骤 1: 准备工作
@@ -181,19 +176,25 @@ jobs:
 
       - name: 🔐 Login to Unikraft Cloud
         run: |
-          # 检查 Token 是否存在（此时会自动读取顶层定义的 KRAFTKIT_TOKEN）
-          if [ -z "$KRAFTKIT_TOKEN" ]; then
+          # 检查 Token
+          if [ -z "$UKC_TOKEN" ]; then
             echo "❌ 错误: 未找到 UNIKRAFT_TOKEN"
             echo "请在 GitHub Settings -> Secrets 中配置 UNIKRAFT_TOKEN"
             exit 1
           fi
           
           echo "🔐 使用 Token 登录 Unikraft Cloud..."
+          
+          # 确保 CLI 在 PATH 中
           export PATH="$HOME/.local/bin:$PATH"
           
-          # 执行登录
-          echo "${KRAFTKIT_TOKEN}" | unikraft login --token - --no-browser
+          # 登录
+          echo "${UKC_TOKEN}" | unikraft login --token - --no-browser
+          
           echo "✅ 登录成功"
+        env:
+          UKC_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
+
       # ========================================
       # 步骤 3: 构建镜像
       # ========================================
@@ -260,6 +261,8 @@ jobs:
             echo "📋 当前镜像列表:"
             unikraft images list || true
           fi
+        env:
+          UKC_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
 
       # ========================================
       # 步骤 4: 创建存储卷（可选）
@@ -290,6 +293,8 @@ jobs:
             echo ""
             echo "✅ 存储卷创建完成"
           fi
+        env:
+          UKC_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
 
       # ========================================
       # 步骤 5: 部署实例
@@ -304,22 +309,12 @@ jobs:
           # 使用完整的 OCI 格式镜像名称
           echo "📦 使用镜像: ${{ env.FULL_IMAGE_NAME }}"
           
-          # 统一处理内存单位，确保带上 B (例如 512MB 或 1GB)
-          RAW_MEMORY="${{ env.MEMORY }}"
-          if [[ "$RAW_MEMORY" == *M ]]; then
-            FINAL_MEMORY="${RAW_MEMORY}B"
-          elif [[ "$RAW_MEMORY" == *G ]]; then
-            FINAL_MEMORY="${RAW_MEMORY}B"
-          else
-            FINAL_MEMORY="${RAW_MEMORY}"
-          fi
-          
           # 构建部署参数
           DEPLOY_PARAMS="--metro ${{ env.METRO }}"
           DEPLOY_PARAMS="$DEPLOY_PARAMS --image ${{ env.FULL_IMAGE_NAME }}"
           DEPLOY_PARAMS="$DEPLOY_PARAMS -n ${{ env.INSTANCE_NAME }}"
           DEPLOY_PARAMS="$DEPLOY_PARAMS -p 443:${{ env.PORT }}/http+tls"
-          DEPLOY_PARAMS="$DEPLOY_PARAMS -m $FINAL_MEMORY"
+          DEPLOY_PARAMS="$DEPLOY_PARAMS -m ${{ env.MEMORY }}iB"
           DEPLOY_PARAMS="$DEPLOY_PARAMS --autostart"
           
           # Scale-to-Zero（可选）
@@ -339,6 +334,8 @@ jobs:
           
           echo ""
           echo "✅ 部署完成"
+        env:
+          UKC_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
 
       # ========================================
       # 步骤 6: 显示部署信息
@@ -359,3 +356,5 @@ jobs:
           unikraft instance list || true
           echo ""
           echo "💡 提示: 访问域名会在实例列表中显示"
+        env:
+          UKC_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
